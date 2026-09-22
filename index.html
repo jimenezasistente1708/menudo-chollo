@@ -60,8 +60,6 @@ img{max-width:100%;display:block}
 .hero h1{margin:0 0 6px;font-size:clamp(1.3rem,2.6vw,1.7rem);font-weight:800;letter-spacing:-.01em}
 .hero p{margin:0;color:var(--muted);font-size:.95rem}
 
-.demo{background:var(--accent-soft);border-bottom:1px solid #F4D3B0;color:#9A4B0C;font-size:.88rem}
-.demo p{max-width:1200px;margin:0 auto;padding:8px 20px}
 .aviso{background:#fff;border-bottom:1px solid var(--line);font-size:.84rem;color:var(--muted)}
 .aviso p{max-width:1200px;margin:0 auto;padding:8px 20px}
 
@@ -98,7 +96,6 @@ img{max-width:100%;display:block}
 .store--aliexpress{color:#C2410C}
 .store--ebay{color:#1D4ED8}
 .store--awin{color:#0F7A34}
-.ribbon{position:absolute;left:0;bottom:0;background:rgba(17,24,39,.85);color:#fff;font-size:.68rem;font-weight:700;padding:3px 10px;border-top-right-radius:var(--radius-s)}
 .save{position:absolute;right:10px;top:10px;background:var(--accent);color:#fff;font-weight:800;font-size:.86rem;padding:4px 9px;border-radius:var(--radius-s);box-shadow:0 1px 2px rgba(0,0,0,.1)}
 .card__body{padding:14px;display:flex;flex-direction:column;gap:8px;flex:1}
 .card__title{margin:0;font-size:.96rem;line-height:1.35;font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.6em}
@@ -178,10 +175,6 @@ img{max-width:100%;display:block}
   </div>
 </section>
 
-<div class="demo" id="banner-demo" hidden>
-  <p>Modo demostración: los productos de abajo son ejemplos inventados para probar el diseño. Pon "modoDemo": false en productos.json antes de publicar.</p>
-</div>
-
 <div class="aviso">
   <p>Menudo Chollo participa en programas de afiliación. Si compras desde nuestros enlaces, podemos recibir una comisión sin coste extra para ti.</p>
 </div>
@@ -250,8 +243,6 @@ img{max-width:100%;display:block}
 (() => {
 'use strict';
 
-/* Único archivo de datos que se edita a diario. Debe estar en la misma
-   carpeta que este index.html (misma raíz, sin subcarpetas). */
 const RUTA_DATOS = 'productos.json';
 
 const $ = (s) => document.querySelector(s);
@@ -296,11 +287,11 @@ function urlValida(p) {
 function enlace(p) {
   if (!urlValida(p)) return '#';
   const u = new URL(p.url);
-  if (p.tienda === 'amazon' && datos.config.amazonTag) u.searchParams.set('tag', datos.config.amazonTag);
+  if (p.tienda === 'amazon' && datos.config && datos.config.amazonTag) u.searchParams.set('tag', datos.config.amazonTag);
   return u.toString();
 }
 
-const puedePrecio = (p) => p.tienda !== 'amazon' || datos.config.amazonPreciosPermitidos === true;
+const puedePrecio = (p) => p.tienda !== 'amazon' || (datos.config && datos.config.amazonPreciosPermitidos === true);
 
 function porcentaje(p) {
   if (!(p.precio > 0) || !(p.precioAnterior > p.precio)) return 0;
@@ -308,12 +299,11 @@ function porcentaje(p) {
 }
 
 function publicables() {
-  const demo = datos.config.modoDemo === true;
-  const caduca = Number(datos.config.caducidadDias) || 7;
+  const caduca = (datos.config && Number(datos.config.caducidadDias)) || 7;
   return datos.productos.filter((p) => {
-    const t = datos.tiendas[p.tienda];
+    if (p.estado !== 'approved') return false;
+    const t = datos.tiendas && datos.tiendas[p.tienda];
     if (!t) return false;
-    if (demo) return true;
     if (t.estado !== 'activo') return false;
     if (!urlValida(p)) return false;
     const d = diasDesde(p.actualizado);
@@ -322,23 +312,23 @@ function publicables() {
 }
 
 function crearImagen(p, thumb) {
-  const permitida = p.img && (p.tienda !== 'amazon' || datos.config.amazonImagenesPermitidas === true);
-  const cat = datos.categorias.find((c) => c.id === p.categoria);
+  const permitida = p.imagen && (p.tienda !== 'amazon' || (datos.config && datos.config.amazonImagenesPermitidas === true));
+  const cat = datos.categorias && datos.categorias.find((c) => c.id === p.categoria);
   const icono = () => {
     const s = el('span', null, cat ? cat.icono : '🛍️');
     s.setAttribute('aria-hidden', 'true');
     return s;
   };
-  if (!permitida || !/^https:\/\//.test(p.img)) { thumb.appendChild(icono()); return; }
+  if (!permitida || !/^https:\/\//.test(p.imagen)) { thumb.appendChild(icono()); return; }
   const img = document.createElement('img');
-  img.src = p.img; img.alt = p.titulo; img.loading = 'lazy'; img.width = 400; img.height = 300;
+  img.src = p.imagen; img.alt = p.titulo; img.loading = 'lazy'; img.width = 400; img.height = 300;
   img.referrerPolicy = 'no-referrer';
   img.addEventListener('error', () => { img.replaceWith(icono()); });
   thumb.appendChild(img);
 }
 
 function crearTarjeta(p) {
-  const nombreTienda = datos.tiendas[p.tienda].nombre;
+  const nombreTienda = datos.tiendas && datos.tiendas[p.tienda] ? datos.tiendas[p.tienda].nombre : p.tienda;
   const li = el('li');
   const card = el('article', 'card');
 
@@ -347,7 +337,6 @@ function crearTarjeta(p) {
   thumb.appendChild(el('span', 'store store--' + p.tienda, nombreTienda));
   const pct = puedePrecio(p) ? porcentaje(p) : 0;
   if (pct > 0) thumb.appendChild(el('span', 'save', '-' + pct + '%'));
-  if (datos.config.modoDemo) thumb.appendChild(el('span', 'ribbon', 'Ejemplo'));
 
   const body = el('div', 'card__body');
   body.appendChild(el('h3', 'card__title', p.titulo));
@@ -403,7 +392,7 @@ function filtrar() {
   if (estado.orden === 'ahorro') {
     lista.sort((a, b) => (puedePrecio(b) ? porcentaje(b) : 0) - (puedePrecio(a) ? porcentaje(a) : 0));
   } else {
-    lista.sort((a, b) => String(b.actualizado || '').localeCompare(String(a.actualizado || '')) || b.id - a.id);
+    lista.sort((a, b) => String(b.actualizado || '').localeCompare(String(a.actualizado || '')) || b.id.localeCompare(a.id));
   }
   return lista;
 }
@@ -412,7 +401,8 @@ function pintarCategorias() {
   const base = publicables();
   const nav = $('#cats');
   nav.textContent = '';
-  [{ id: 'todas', nombre: 'Todas', icono: '🔥' }].concat(datos.categorias).forEach((c) => {
+  const catsConfig = datos.categorias || [];
+  [{ id: 'todas', nombre: 'Todas', icono: '🔥' }].concat(catsConfig).forEach((c) => {
     const n = c.id === 'todas' ? base.length : base.filter((p) => p.categoria === c.id).length;
     const b = el('button');
     b.type = 'button';
@@ -430,7 +420,8 @@ function pintarTiendas() {
   const usadas = Array.from(new Set(publicables().map((p) => p.tienda)));
   if (usadas.length < 2) return;
   ['todas'].concat(usadas).forEach((t) => {
-    const b = el('button', 'chip', t === 'todas' ? 'Todas las tiendas' : datos.tiendas[t].nombre);
+    const nombreTienda = datos.tiendas && datos.tiendas[t] ? datos.tiendas[t].nombre : t;
+    const b = el('chip', 'chip', t === 'todas' ? 'Todas las tiendas' : nombreTienda);
     b.type = 'button';
     b.setAttribute('aria-pressed', String(estado.tienda === t));
     b.addEventListener('click', () => { estado.tienda = t; pintar(); });
@@ -444,7 +435,7 @@ function pintar() {
   const lista = filtrar();
   const grid = $('#grid');
   grid.textContent = '';
-  const CADA = 6; // hueco publicitario cada 6 tarjetas
+  const CADA = 6;
   lista.forEach((p, i) => {
     grid.appendChild(crearTarjeta(p));
     if (CADA > 0 && (i + 1) % CADA === 0 && i + 1 < lista.length) grid.appendChild(crearAnuncio());
@@ -454,7 +445,7 @@ function pintar() {
 }
 
 function configurarWhatsApp() {
-  const url = datos.config.whatsappUrl || '';
+  const url = datos.config && datos.config.whatsappUrl ? datos.config.whatsappUrl : '';
   const ok = /^https:\/\/(chat\.whatsapp\.com|whatsapp\.com\/channel)\//.test(url);
   document.querySelectorAll('[data-wa]').forEach((a) => {
     if (ok) { a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer'; }
@@ -472,7 +463,6 @@ async function iniciar() {
     $('#contador').textContent = '';
     return;
   }
-  $('#banner-demo').hidden = datos.config.modoDemo !== true;
   configurarWhatsApp();
 
   $('#form-buscar').addEventListener('submit', (e) => {
